@@ -1,0 +1,44 @@
+# Environment & secrets
+.env
+*.env
+bot/.env
+SummaryAI/.env
+
+# Python & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Uploads & Temp files
+bot/uploads/
+uploads/
+*.pdf
+*.pptx
+*.docx
+!bot/uploads/.gitkeep
+
+# Logs
+*.log
+api.log
+api_err.log
+run.log
+run_err.log
+web.log
+web_err.log
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env/
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

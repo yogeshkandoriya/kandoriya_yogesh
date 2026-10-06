@@ -1,0 +1,6 @@
+.env
+uploads/
+__pycache__/
+*.log
+test_file_id.txt
+exported_summary.md

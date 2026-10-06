@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Summary AI - Next-Gen Document Intelligence Workspace for intelligent summarization, semantic search, grounded Q&A, and citation-backed insights from your PDFs.">
+    <title>Summary AI — Intelligent Document Workspace</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Animated Ambient Background Glow Orbs -->
+    <div class="ambient-glow-wrapper" aria-hidden="true">
+        <div class="ambient-orb orb-purple"></div>
+        <div class="ambient-orb orb-indigo"></div>
+        <div class="ambient-orb orb-pink"></div>
+        <div class="ambient-orb orb-cyan"></div>
+    </div>
+
+    <!-- App Root Container -->
+    <div class="app-root">
+        
+        <!-- ================= TOP NAVIGATION BAR ================= -->
+        <header class="app-header" id="appHeader">
+            <div class="header-left">
+                <button id="mobileMenuBtn" class="icon-btn mobile-only" aria-label="Toggle Navigation Drawer" title="Menu">
+                    <i class="fa-solid fa-bars-staggered"></i>
+                </button>
+                <div class="brand" id="brandHome" role="button" tabindex="0" title="Summary AI Home">
+                    <div class="brand-logo">
+                        <i class="fa-solid fa-bolt-lightning"></i>
+                    </div>
+                    <div class="brand-text">
+                        <h2>Summary <span>AI</span></h2>
+                        <span class="brand-tagline">Doc Intelligence</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Document Center Pill (Visible when doc is loaded) -->
+            <div class="header-center hidden" id="headerDocInfo">
+                <div class="header-doc-pill">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span id="headerDocName" class="truncate">document.pdf</span>
+                    <span class="badge-dot online" title="Indexed & Ready"></span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <!-- Server & Model Badge -->
+                <div class="model-status-pill" id="modelStatusPill" role="button" tabindex="0" title="Click to view AI Engine details">
+                    <span class="status-indicator online" id="serverDot"></span>
+                    <i class="fa-solid fa-brain"></i>
+                    <span id="modelNameText">Connecting…</span>
+                </div>
+
+                <!-- Theme Toggle Button -->
+                <button id="themeToggleBtn" class="icon-btn" aria-label="Toggle Theme" title="Toggle Light/Dark Theme">
+                    <i class="fa-solid fa-moon" id="themeIcon"></i>
+                </button>
+
+                <!-- New Document Button -->
+                <button id="navNewDocBtn" class="btn btn-primary btn-sm hidden" title="Upload a new document (Alt+N)">
+                    <i class="fa-solid fa-plus"></i>
+                    <span class="desktop-text">New Doc</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ================= MAIN VIEW CONTAINER ================= -->
+        <div class="app-body">
+            
+            <!-- ============ INITIAL UPLOAD LANDING STATE ============ -->
+            <main id="initialView" class="view-panel initial-view">
+                
+                <!-- Hero Section -->
+                <div class="hero-container">
+                    <div class="hero-badge-pill animate-float">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Next-Gen Document Intelligence</span>
+                    </div>
+                    
+                    <h1 class="hero-title">
+                        Analyze, Summarize &amp; Chat with <br>
+                        <span class="gradient-text">Any Document Instantly</span>
+                    </h1>
+                    
+                    <p class="hero-desc">
+                        Upload your PDF to get instant executive summaries, grounded Q&amp;A with exact page citations, offline topic graphs, and an interactive side-by-side document reader.
+                    </p>
+
+                    <!-- Feature Tags Pill Row -->
+                    <div class="hero-tags-row">
+                        <span class="hero-tag"><i class="fa-solid fa-bolt"></i> 5 Summary Styles</span>
+                        <span class="hero-tag"><i class="fa-solid fa-crosshairs"></i> Grounded RAG Citations</span>
+                        <span class="hero-tag"><i class="fa-solid fa-hand"></i> Stop &amp; Interrupt AI</span>
+                        <span class="hero-tag"><i class="fa-solid fa-lock"></i> 100% Local Embedding</span>
+                    </div>
+                </div>
+
+                <!-- Drag & Drop Upload Zone -->
+                <div class="upload-deck" id="uploadZone" role="button" aria-label="Upload PDF Document" tabindex="0">
+                    <input type="file" id="fileInput" accept=".pdf,application/pdf" hidden>
+                    
+                    <!-- Glow Border Effect -->
+                    <div class="deck-glow-border"></div>
+
+                    <!-- Upload Idle Content -->
+                    <div class="upload-content" id="uploadContent">
+                        <div class="upload-graphic">
+                            <div class="sonar-ring sonar-1"></div>
+                            <div class="sonar-ring sonar-2"></div>
+                            <div class="icon-circle">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="upload-text-box">
+                            <h3>Drag &amp; drop your PDF document here</h3>
+                            <p>or <span class="upload-link">browse files on your computer</span></p>
+                        </div>
+
+                        <div class="upload-specs">
+                            <span class="spec-pill"><i class="fa-regular fa-file-pdf"></i> PDF format</span>
+                            <span class="spec-pill"><i class="fa-solid fa-shield-halved"></i> Local Vector Indexing</span>
+                            <span class="spec-pill"><i class="fa-solid fa-weight-hanging"></i> Up to 50 MB</span>
+                        </div>
+                    </div>
+
+                    <!-- Upload In-Progress State -->
+                    <div class="upload-processing hidden" id="uploadProgress">
+                        <div class="processing-spinner-box">
+                            <div class="radar-spinner"></div>
+                            <i class="fa-solid fa-microchip processing-center-icon"></i>
+                        </div>
+                        <div class="processing-info">
+                            <h4 id="progressStageTitle">Analyzing Document…</h4>
+                            <p id="progressStageDetail">Reading pages and generating vector search embeddings</p>
+                            
+                            <!-- Step indicators -->
+                            <div class="pipeline-steps">
+                                <div class="p-step active" id="stepUpload"><i class="fa-solid fa-check"></i> Upload</div>
+                                <div class="p-step" id="stepExtract"><i class="fa-solid fa-file-lines"></i> Extract</div>
+                                <div class="p-step" id="stepIndex"><i class="fa-solid fa-bolt"></i> Index</div>
+                                <div class="p-step" id="stepReady"><i class="fa-solid fa-sparkles"></i> Ready</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Capability Feature Cards -->
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon-box"><i class="fa-solid fa-bolt"></i></div>
+                        <h4>5 Summary Modes</h4>
+                        <p>From 4-bullet executive summaries to structured deep-dive reports, findings &amp; FAQs.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon-box"><i class="fa-solid fa-comments"></i></div>
+                        <h4>Grounded Q&amp;A</h4>
+                        <p>Ask anything. Answers cite the exact page number <code>(p. N)</code> with source verification.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon-box"><i class="fa-solid fa-book-open"></i></div>
+                        <h4>Document Reader</h4>
+                        <p>Read extracted pages side-by-side with full-text search, page controls &amp; jump-to.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon-box"><i class="fa-solid fa-hand-sparkles"></i></div>
+                        <h4>Stop &amp; Interrupt</h4>
+                        <p>Interrupt the AI at any time during generation with live network abort control.</p>
+                    </div>
+                </div>
+            </main>
+
+            <!-- ============ ACTIVE DOCUMENT WORKSPACE ============ -->
+            <main id="activeWorkspace" class="view-panel workspace-view hidden">
+                
+                <!-- Left Sidebar / Navigation Drawer -->
+                <aside class="workspace-sidebar" id="workspaceSidebar">
+                    
+                    <!-- Sidebar Document Profile -->
+                    <div class="sidebar-card doc-profile-card">
+                        <div class="doc-icon-wrap">
+                            <i class="fa-solid fa-file-pdf"></i>
+                        </div>
+                        <div class="doc-details">
+                            <h3 id="docTitle" class="doc-title-text" title="">document.pdf</h3>
+                            <span class="status-chip success">
+                                <i class="fa-solid fa-circle-check"></i> Vector Indexed
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Document Metrics Bar -->
+                    <div class="doc-stats-grid">
+                        <div class="stat-box" title="Total Pages">
+                            <span class="stat-val" id="statPages">0</span>
+                            <span class="stat-lbl"><i class="fa-solid fa-file"></i> Pages</span>
+                        </div>
+                        <div class="stat-box" title="Total Word Count">
+                            <span class="stat-val" id="statWords">0</span>
+                            <span class="stat-lbl"><i class="fa-solid fa-font"></i> Words</span>
+                        </div>
+                        <div class="stat-box" title="Indexed Text Chunks">
+                            <span class="stat-val" id="statChunks">0</span>
+                            <span class="stat-lbl"><i class="fa-solid fa-cubes"></i> Chunks</span>
+                        </div>
+                    </div>
+
+                    <!-- Summary Decks -->
+                    <div class="sidebar-section">
+                        <div class="section-title">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>AI Summaries</span>
+                        </div>
+                        <div class="summary-action-list">
+                            <button class="summary-action-btn" data-length="short" id="sumShortBtn">
+                                <div class="action-btn-icon"><i class="fa-solid fa-bolt"></i></div>
+                                <div class="action-btn-text">
+                                    <strong>Quick Bullets</strong>
+                                    <small>4-6 points + bottom line</small>
+                                </div>
+                            </button>
+                            <button class="summary-action-btn" data-length="medium" id="sumMediumBtn">
+                                <div class="action-btn-icon"><i class="fa-solid fa-align-left"></i></div>
+                                <div class="action-btn-text">
+                                    <strong>Executive Overview</strong>
+                                    <small>Overview + key points</small>
+                                </div>
+                            </button>
+                            <button class="summary-action-btn" data-length="detailed" id="sumDetailedBtn">
+                                <div class="action-btn-icon"><i class="fa-solid fa-list-check"></i></div>
+                                <div class="action-btn-text">
+                                    <strong>Detailed Report</strong>
+                                    <small>Structured section by section</small>
+                                </div>
+                            </button>
+                            <button class="summary-action-btn" data-length="findings" id="sumFindingsBtn">
+                                <div class="action-btn-icon"><i class="fa-solid fa-lightbulb"></i></div>
+                                <div class="action-btn-text">
+                                    <strong>Key Insights &amp; Data</strong>
+                                    <small>Metrics, discoveries &amp; data</small>
+                                </div>
+                            </button>
+                            <button class="summary-action-btn" data-length="faq" id="sumFaqBtn">
+                                <div class="action-btn-icon"><i class="fa-solid fa-circle-question"></i></div>
+                                <div class="action-btn-text">
+                                    <strong>Essential FAQ</strong>
+                                    <small>Top 5 core questions &amp; answers</small>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Key Topics & Keywords Cloud -->
+                    <div class="sidebar-section">
+                        <div class="section-title">
+                            <i class="fa-solid fa-tags"></i>
+                            <span>Key Topics</span>
+                            <span class="badge" id="kwCountBadge">0</span>
+                        </div>
+                        <div class="topic-cloud-wrapper">
+                            <div id="keywordsList" class="topic-cloud">
+                                <div class="kw-skeleton-pill"></div>
+                                <div class="kw-skeleton-pill"></div>
+                                <div class="kw-skeleton-pill"></div>
+                                <div class="kw-skeleton-pill"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar Footer Controls -->
+                    <div class="sidebar-footer">
+                        <div class="export-dropdown-wrap">
+                            <button id="exportDropdownBtn" class="btn btn-outline btn-full" title="Export Summary">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Export Summary</span>
+                                <i class="fa-solid fa-chevron-down caret-icon"></i>
+                            </button>
+                            <div class="export-menu hidden" id="exportMenu">
+                                <button class="export-opt" data-fmt="md"><i class="fa-brands fa-markdown"></i> Markdown (.md)</button>
+                                <button class="export-opt" data-fmt="txt"><i class="fa-regular fa-file-lines"></i> Plain Text (.txt)</button>
+                                <button class="export-opt" data-fmt="copy"><i class="fa-solid fa-copy"></i> Copy to Clipboard</button>
+                                <button class="export-opt" data-fmt="print"><i class="fa-solid fa-print"></i> Print / Save as PDF</button>
+                            </div>
+                        </div>
+                        <button id="closeDocBtn" class="btn btn-ghost btn-full" title="Close document and return home">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span>Close Document</span>
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- Sidebar Backdrop (for Mobile Drawer) -->
+                <div class="sidebar-backdrop hidden" id="sidebarBackdrop"></div>
+
+                <!-- Center Workspace Tabs -->
+                <div class="workspace-main">
+                    
+                    <!-- Navigation Tabs Bar -->
+                    <nav class="workspace-nav-tabs">
+                        <div class="tabs-list">
+                            <button class="nav-tab active" data-tab="chatTab">
+                                <i class="fa-solid fa-comments"></i>
+                                <span>Assistant &amp; Chat</span>
+                            </button>
+                            <button class="nav-tab" data-tab="readerTab">
+                                <i class="fa-solid fa-book-open"></i>
+                                <span>Document Reader</span>
+                            </button>
+                            <button class="nav-tab" data-tab="topicsTab">
+                                <i class="fa-solid fa-diagram-project"></i>
+                                <span>Topic Explorer</span>
+                            </button>
+                        </div>
+                        <div class="workspace-tools">
+                            <button id="clearChatBtn" class="icon-btn-sm" title="Clear conversation history">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </nav>
+
+                    <!-- TAB 1: Chat & Assistant Section -->
+                    <section class="tab-pane active" id="chatTab">
+                        <!-- Chat Conversation Scroll Area -->
+                        <div class="chat-feed" id="chatHistory" role="log" aria-live="polite">
+                            <!-- Welcome banner inserted dynamically -->
+                        </div>
+
+                        <!-- Chat Composer -->
+                        <div class="chat-composer-deck">
+                            
+                            <!-- Suggested Starter Questions -->
+                            <div class="suggestions-deck hidden" id="suggestionChips"></div>
+
+                            <!-- Slash Commands Helper Bar -->
+                            <div class="slash-helper hidden" id="slashHelper">
+                                <div class="slash-item" data-cmd="/summary"><span class="cmd">/summary</span><span class="desc">Generate quick summary</span></div>
+                                <div class="slash-item" data-cmd="/overview"><span class="cmd">/overview</span><span class="desc">Generate executive overview</span></div>
+                                <div class="slash-item" data-cmd="/detailed"><span class="cmd">/detailed</span><span class="desc">Generate detailed report</span></div>
+                                <div class="slash-item" data-cmd="/findings"><span class="cmd">/findings</span><span class="desc">Extract key insights & data</span></div>
+                                <div class="slash-item" data-cmd="/faq"><span class="cmd">/faq</span><span class="desc">Generate top 5 FAQs</span></div>
+                                <div class="slash-item" data-cmd="/clear"><span class="cmd">/clear</span><span class="desc">Clear chat conversation</span></div>
+                            </div>
+
+                            <!-- Input Box Area -->
+                            <div class="composer-box" id="composerBox">
+                                <textarea 
+                                    id="chatInput" 
+                                    rows="1" 
+                                    placeholder="Ask a question about this document… (Type / for commands, Enter to send)"
+                                    aria-label="Ask a question about this document"
+                                ></textarea>
+                                
+                                <div class="composer-actions">
+                                    <!-- Interrupt / Stop Generation Button (Shown when busy) -->
+                                    <button id="stopGenBtn" class="btn-interrupt hidden" aria-label="Stop Generation" title="Stop generating (Esc)">
+                                        <i class="fa-solid fa-circle-stop"></i>
+                                        <span>Stop</span>
+                                    </button>
+
+                                    <!-- Send Button -->
+                                    <button id="sendBtn" class="btn-send" aria-label="Send message" title="Send message (Enter)">
+                                        <i class="fa-solid fa-arrow-up"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="composer-footnote">
+                                <i class="fa-solid fa-shield-check"></i>
+                                <span>Answers are strictly grounded in your PDF document with exact page citations.</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 2: Document Reader Section -->
+                    <section class="tab-pane hidden" id="readerTab">
+                        <div class="reader-container">
+                            <div class="reader-toolbar">
+                                <div class="reader-page-nav">
+                                    <button id="prevPageBtn" class="icon-btn-sm" title="Previous Page"><i class="fa-solid fa-chevron-left"></i></button>
+                                    <span class="reader-page-label">Page <input type="number" id="readerPageInput" value="1" min="1" max="1"> of <span id="readerTotalPages">1</span></span>
+                                    <button id="nextPageBtn" class="icon-btn-sm" title="Next Page"><i class="fa-solid fa-chevron-right"></i></button>
+                                </div>
+
+                                <div class="reader-search-box">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                    <input type="text" id="readerSearchInput" placeholder="Search text in document…">
+                                    <button id="clearSearchBtn" class="search-clear-btn hidden"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+
+                                <div class="reader-actions">
+                                    <button id="askAboutPageBtn" class="btn btn-outline btn-sm">
+                                        <i class="fa-solid fa-comment-dots"></i>
+                                        <span>Ask about this page</span>
+                                    </button>
+                                    <button id="viewRawPdfBtn" class="btn btn-ghost btn-sm" title="Open PDF in new tab">
+                                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                        <span>Open PDF</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Page Content View -->
+                            <div class="reader-content-body" id="readerPageContent">
+                                <div class="reader-page-card">
+                                    <div class="page-card-header">
+                                        <span class="page-num-tag" id="pageCardBadge">Page 1</span>
+                                        <span class="page-word-count" id="pageWordCount">0 words</span>
+                                    </div>
+                                    <div class="page-text-content" id="pageTextContent">
+                                        Select a document to read its pages.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- TAB 3: Topic Explorer Section -->
+                    <section class="tab-pane hidden" id="topicsTab">
+                        <div class="topics-explorer-container">
+                            <div class="topics-header">
+                                <h3><i class="fa-solid fa-tags"></i> Document Topics &amp; Terminology</h3>
+                                <p>Auto-extracted keywords and phrases ranked by statistical importance (TF-IDF). Click any topic to analyze it in depth.</p>
+                            </div>
+                            <div class="topics-grid" id="topicsExplorerGrid">
+                                <!-- Cards populated by JS -->
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </main>
+
+        </div>
+
+        <!-- ================= SOURCE PASSAGE INSPECTOR MODAL ================= -->
+        <div class="modal-overlay hidden" id="passageModal" role="dialog" aria-modal="true" aria-labelledby="modalPageTitle">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <i class="fa-solid fa-quote-left"></i>
+                        <h4 id="modalPageTitle">Passage Citation (Page 1)</h4>
+                        <span class="relevance-badge" id="modalScoreBadge">Relevance: 95%</span>
+                    </div>
+                    <button class="icon-btn-sm" id="closePassageModal" aria-label="Close passage modal">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="passage-excerpt-box" id="modalExcerptText"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="modalJumpReaderBtn" class="btn btn-outline btn-sm">
+                        <i class="fa-solid fa-book-open"></i> Jump to Page in Reader
+                    </button>
+                    <button id="modalAskPassageBtn" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-comment-dots"></i> Ask AI about this excerpt
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= ENGINE DIAGNOSTICS MODAL ================= -->
+        <div class="modal-overlay hidden" id="diagnosticsModal" role="dialog" aria-modal="true">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <i class="fa-solid fa-microchip"></i>
+                        <h4>AI Engine Diagnostics</h4>
+                    </div>
+                    <button class="icon-btn-sm" id="closeDiagnosticsModal" aria-label="Close diagnostics modal">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="diag-item">
+                        <label>Primary Model:</label>
+                        <span id="diagPrimaryModel" class="code-badge">…</span>
+                    </div>
+                    <div class="diag-item">
+                        <label>Fallback Models:</label>
+                        <div id="diagFallbacks" class="fallbacks-list">…</div>
+                    </div>
+                    <div class="diag-item">
+                        <label>API Key Status:</label>
+                        <span id="diagKeyStatus" class="status-pill-sub">Checking…</span>
+                    </div>
+                    <div class="diag-item">
+                        <label>Architecture:</label>
+                        <p class="diag-note">MiniLM vector embeddings + FAISS cosine index + OpenRouter LLM grounding with automatic rate-limit failover.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary btn-sm" id="diagOkBtn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TOAST NOTIFICATION CONTAINER ================= -->
+        <div id="toast" class="toast-card hidden" role="alert">
+            <i class="fa-solid fa-circle-info toast-icon" id="toastIcon"></i>
+            <span class="toast-message" id="toastMessage">Notification message</span>
+            <button class="toast-close" id="toastCloseBtn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
