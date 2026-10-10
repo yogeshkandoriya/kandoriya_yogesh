@@ -56,6 +56,13 @@
             </div>
 
             <div class="header-right">
+                <!-- History Toggle Button -->
+                <button id="historyNavBtn" class="icon-btn-text" aria-label="View History" title="Recent Documents & Chat History">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span class="desktop-text">History</span>
+                    <span class="history-badge hidden" id="historyNavBadge">0</span>
+                </button>
+
                 <!-- Server & Model Badge -->
                 <div class="model-status-pill" id="modelStatusPill" role="button" tabindex="0" title="Click to view AI Engine details">
                     <span class="status-indicator online" id="serverDot"></span>
@@ -102,7 +109,7 @@
                     <div class="hero-tags-row">
                         <span class="hero-tag"><i class="fa-solid fa-bolt"></i> 5 Summary Styles</span>
                         <span class="hero-tag"><i class="fa-solid fa-crosshairs"></i> Grounded RAG Citations</span>
-                        <span class="hero-tag"><i class="fa-solid fa-hand"></i> Stop &amp; Interrupt AI</span>
+                        <span class="hero-tag"><i class="fa-solid fa-clock-rotate-left"></i> SQLite History</span>
                         <span class="hero-tag"><i class="fa-solid fa-lock"></i> 100% Local Embedding</span>
                     </div>
                 </div>
@@ -131,7 +138,7 @@
 
                         <div class="upload-specs">
                             <span class="spec-pill"><i class="fa-regular fa-file-pdf"></i> PDF format</span>
-                            <span class="spec-pill"><i class="fa-solid fa-shield-halved"></i> Local Vector Indexing</span>
+                            <span class="spec-pill"><i class="fa-solid fa-database"></i> Auto-Persisted to SQLite</span>
                             <span class="spec-pill"><i class="fa-solid fa-weight-hanging"></i> Up to 50 MB</span>
                         </div>
                     </div>
@@ -157,6 +164,23 @@
                     </div>
                 </div>
 
+                <!-- Recent Documents Shelf (Landing Page) -->
+                <div class="recent-docs-section hidden" id="landingRecentSection">
+                    <div class="recent-header">
+                        <div class="recent-title">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span>Recent Documents</span>
+                            <span class="badge" id="recentDocsCount">0</span>
+                        </div>
+                        <button id="clearAllHistoryLandingBtn" class="btn-text-danger" title="Clear all history">
+                            <i class="fa-solid fa-trash-can"></i> Clear All
+                        </button>
+                    </div>
+                    <div class="recent-docs-grid" id="recentDocsLandingGrid">
+                        <!-- Populated dynamically by app.js -->
+                    </div>
+                </div>
+
                 <!-- Capability Feature Cards -->
                 <div class="features-grid">
                     <div class="feature-card">
@@ -170,9 +194,9 @@
                         <p>Ask anything. Answers cite the exact page number <code>(p. N)</code> with source verification.</p>
                     </div>
                     <div class="feature-card">
-                        <div class="feature-icon-box"><i class="fa-solid fa-book-open"></i></div>
-                        <h4>Document Reader</h4>
-                        <p>Read extracted pages side-by-side with full-text search, page controls &amp; jump-to.</p>
+                        <div class="feature-icon-box"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <h4>Persistent History</h4>
+                        <p>Documents and conversation threads are saved to SQLite so you never lose your analysis.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon-box"><i class="fa-solid fa-hand-sparkles"></i></div>
@@ -279,6 +303,18 @@
                         </div>
                     </div>
 
+                    <!-- Sidebar Recent Files Switcher -->
+                    <div class="sidebar-section" id="sidebarRecentSection">
+                        <div class="section-title">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span>Switch Document</span>
+                            <button id="sidebarManageHistoryBtn" class="btn-text-sm" title="Open full history manager">View All</button>
+                        </div>
+                        <div class="sidebar-recent-list" id="sidebarRecentList">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
                     <!-- Sidebar Footer Controls -->
                     <div class="sidebar-footer">
                         <div class="export-dropdown-wrap">
@@ -324,7 +360,7 @@
                             </button>
                         </div>
                         <div class="workspace-tools">
-                            <button id="clearChatBtn" class="icon-btn-sm" title="Clear conversation history">
+                            <button id="clearChatBtn" class="icon-btn-sm" title="Clear conversation history for this document">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </div>
@@ -334,7 +370,7 @@
                     <section class="tab-pane active" id="chatTab">
                         <!-- Chat Conversation Scroll Area -->
                         <div class="chat-feed" id="chatHistory" role="log" aria-live="polite">
-                            <!-- Welcome banner inserted dynamically -->
+                            <!-- Welcome banner and history inserted dynamically -->
                         </div>
 
                         <!-- Chat Composer -->
@@ -348,7 +384,7 @@
                                 <div class="slash-item" data-cmd="/summary"><span class="cmd">/summary</span><span class="desc">Generate quick summary</span></div>
                                 <div class="slash-item" data-cmd="/overview"><span class="cmd">/overview</span><span class="desc">Generate executive overview</span></div>
                                 <div class="slash-item" data-cmd="/detailed"><span class="cmd">/detailed</span><span class="desc">Generate detailed report</span></div>
-                                <div class="slash-item" data-cmd="/findings"><span class="cmd">/findings</span><span class="desc">Extract key insights & data</span></div>
+                                <div class="slash-item" data-cmd="/findings"><span class="cmd">/findings</span><span class="desc">Extract key insights &amp; data</span></div>
                                 <div class="slash-item" data-cmd="/faq"><span class="cmd">/faq</span><span class="desc">Generate top 5 FAQs</span></div>
                                 <div class="slash-item" data-cmd="/clear"><span class="cmd">/clear</span><span class="desc">Clear chat conversation</span></div>
                             </div>
@@ -442,6 +478,39 @@
                 </div>
             </main>
 
+        </div>
+
+        <!-- ================= FULL HISTORY MANAGER MODAL ================= -->
+        <div class="modal-overlay hidden" id="historyModal" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle">
+            <div class="modal-card modal-lg">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <h4 id="historyModalTitle">Document &amp; Chat History</h4>
+                        <span class="relevance-badge" id="historyModalCountBadge">0 Documents</span>
+                    </div>
+                    <button class="icon-btn-sm" id="closeHistoryModal" aria-label="Close history modal">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="history-toolbar">
+                        <div class="history-search-wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="historySearchInput" placeholder="Search past documents by name…">
+                        </div>
+                        <button id="clearAllHistoryModalBtn" class="btn btn-outline-danger btn-sm">
+                            <i class="fa-solid fa-trash-can"></i> Clear All History
+                        </button>
+                    </div>
+                    <div class="history-list-wrap" id="historyModalList">
+                        <!-- Populated dynamically by app.js -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary btn-sm" id="historyCloseBtn">Close</button>
+                </div>
+            </div>
         </div>
 
         <!-- ================= SOURCE PASSAGE INSPECTOR MODAL ================= -->

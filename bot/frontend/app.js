@@ -1,15 +1,12 @@
 /**
  * Summary AI — Next-Generation Frontend Controller
  * Complete responsive document workspace with grounded RAG,
- * interrupt/abort capability, citation inspection, reader, and multi-format exporter.
+ * SQLite persistence, document & chat history, citation inspection, and multi-format exporter.
  */
 
 // -------------------------------------------------------------------------- //
 // Configuration & Environment
 // -------------------------------------------------------------------------- //
-/* Same-origin whenever the page itself is served over HTTP(S) — covers dev
-   (:8000) and any host (huggingface.co, Railway, Render...). file:// fallback
-   points at a locally running backend. */
 const API_URL = (location.protocol === 'http:' || location.protocol === 'https:')
     ? '' : 'http://localhost:8000';
 
@@ -26,6 +23,7 @@ const state = {
     keywords: [],
     sourcesCache: {},
     speechSynthUtterance: null,
+    cachedHistory: [],
 };
 
 // DOM References Cache
@@ -41,6 +39,14 @@ const dom = {
     mobileMenuBtn: document.getElementById('mobileMenuBtn'),
     headerDocInfo: document.getElementById('headerDocInfo'),
     headerDocName: document.getElementById('headerDocName'),
+
+    // History Navigation & Landing Shelf
+    historyNavBtn: document.getElementById('historyNavBtn'),
+    historyNavBadge: document.getElementById('historyNavBadge'),
+    landingRecentSection: document.getElementById('landingRecentSection'),
+    recentDocsLandingGrid: document.getElementById('recentDocsLandingGrid'),
+    recentDocsCount: document.getElementById('recentDocsCount'),
+    clearAllHistoryLandingBtn: document.getElementById('clearAllHistoryLandingBtn'),
 
     // Views
     initialView: document.getElementById('initialView'),
@@ -60,13 +66,16 @@ const dom = {
     stepIndex: document.getElementById('stepIndex'),
     stepReady: document.getElementById('stepReady'),
 
-    // Sidebar Data
+    // Sidebar Data & Switcher
     docTitle: document.getElementById('docTitle'),
     statPages: document.getElementById('statPages'),
     statWords: document.getElementById('statWords'),
     statChunks: document.getElementById('statChunks'),
     keywordsList: document.getElementById('keywordsList'),
     kwCountBadge: document.getElementById('kwCountBadge'),
+    sidebarRecentSection: document.getElementById('sidebarRecentSection'),
+    sidebarRecentList: document.getElementById('sidebarRecentList'),
+    sidebarManageHistoryBtn: document.getElementById('sidebarManageHistoryBtn'),
     closeDocBtn: document.getElementById('closeDocBtn'),
     exportDropdownBtn: document.getElementById('exportDropdownBtn'),
     exportMenu: document.getElementById('exportMenu'),
@@ -100,7 +109,17 @@ const dom = {
     // Topic Explorer Tab
     topicsExplorerGrid: document.getElementById('topicsExplorerGrid'),
 
-    // Modals
+    // History Modal
+    historyModal: document.getElementById('historyModal'),
+    historyModalTitle: document.getElementById('historyModalTitle'),
+    historyModalCountBadge: document.getElementById('historyModalCountBadge'),
+    historyModalList: document.getElementById('historyModalList'),
+    historySearchInput: document.getElementById('historySearchInput'),
+    closeHistoryModal: document.getElementById('closeHistoryModal'),
+    clearAllHistoryModalBtn: document.getElementById('clearAllHistoryModalBtn'),
+    historyCloseBtn: document.getElementById('historyCloseBtn'),
+
+    // Citation Passage Modal
     passageModal: document.getElementById('passageModal'),
     modalPageTitle: document.getElementById('modalPageTitle'),
     modalScoreBadge: document.getElementById('modalScoreBadge'),
@@ -109,6 +128,7 @@ const dom = {
     modalJumpReaderBtn: document.getElementById('modalJumpReaderBtn'),
     modalAskPassageBtn: document.getElementById('modalAskPassageBtn'),
 
+    // Diagnostics Modal
     diagnosticsModal: document.getElementById('diagnosticsModal'),
     diagPrimaryModel: document.getElementById('diagPrimaryModel'),
     diagFallbacks: document.getElementById('diagFallbacks'),
@@ -130,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initEventListeners();
     checkHealth();
+    loadHistoryList();
 });
 
 function initTheme() {
@@ -161,7 +182,7 @@ function initEventListeners() {
     
     // Brand home click
     dom.brandHome.addEventListener('click', () => {
-        if (state.fileId && confirm('Return to home screen? Your current document remains active.')) {
+        if (state.fileId && confirm('Return to home screen? Your document & chat history remain saved.')) {
             closeDocument();
         }
     });
@@ -174,6 +195,15 @@ function initEventListeners() {
     dom.modelStatusPill.addEventListener('click', showDiagnosticsModal);
     dom.closeDiagnosticsModal.addEventListener('click', hideDiagnosticsModal);
     dom.diagOkBtn.addEventListener('click', hideDiagnosticsModal);
+
+    // History Navigation & Modals
+    dom.historyNavBtn.addEventListener('click', showHistoryModal);
+    dom.sidebarManageHistoryBtn.addEventListener('click', showHistoryModal);
+    dom.closeHistoryModal.addEventListener('click', hideHistoryModal);
+    dom.historyCloseBtn.addEventListener('click', hideHistoryModal);
+    dom.clearAllHistoryLandingBtn.addEventListener('click', handleClearAllHistory);
+    dom.clearAllHistoryModalBtn.addEventListener('click', handleClearAllHistory);
+    dom.historySearchInput.addEventListener('input', handleHistorySearch);
 
     // Upload Actions
     dom.uploadZone.addEventListener('click', (e) => {
@@ -254,13 +284,7 @@ function initEventListeners() {
     });
 
     // Clear Chat
-    dom.clearChatBtn.addEventListener('click', () => {
-        if (confirm('Clear the conversation history for this document?')) {
-            dom.chatHistory.innerHTML = '';
-            renderWelcomeBanner();
-            showToast('Chat history cleared', 'success');
-        }
-    });
+    dom.clearChatBtn.addEventListener('click', handleClearActiveChat);
 
     // Export Dropdown
     dom.exportDropdownBtn.addEventListener('click', (e) => {
@@ -283,6 +307,7 @@ function initEventListeners() {
             if (state.isBusy) interruptGeneration();
             hidePassageModal();
             hideDiagnosticsModal();
+            hideHistoryModal();
             closeSidebarDrawer();
         } else if (e.altKey && (e.key === 'n' || e.key === 'N')) {
             e.preventDefault();
@@ -324,7 +349,6 @@ async function checkHealth() {
         dom.modelNameText.textContent = data.model ? data.model.split('/').pop() : 'online';
         dom.serverDot.className = 'status-indicator online';
         
-        // Populate diagnostics
         dom.diagPrimaryModel.textContent = data.model || 'nvidia/nemotron-3-super-120b-a12b:free';
         dom.diagFallbacks.innerHTML = (data.fallbacks || []).map(f => `<div class="code-badge" style="margin-top:4px">${f}</div>`).join('') || 'None';
         dom.diagKeyStatus.textContent = data.api_key_configured ? 'Configured & Active' : 'Missing (Check .env)';
@@ -342,6 +366,269 @@ function showDiagnosticsModal() {
 
 function hideDiagnosticsModal() {
     dom.diagnosticsModal.classList.add('hidden');
+}
+
+// -------------------------------------------------------------------------- //
+// Document & Chat History System (SQLite Persistence)
+// -------------------------------------------------------------------------- //
+async function loadHistoryList() {
+    try {
+        const res = await fetch(`${API_URL}/history/documents`);
+        const data = await res.json();
+        if (res.ok && data.documents) {
+            state.cachedHistory = data.documents;
+            renderHistoryUI(data.documents);
+        }
+    } catch (err) {
+        console.warn('Could not load history list:', err);
+    }
+}
+
+function renderHistoryUI(documents) {
+    const count = documents.length;
+
+    // Update Header Badge
+    if (count > 0) {
+        dom.historyNavBadge.textContent = count;
+        dom.historyNavBadge.classList.remove('hidden');
+    } else {
+        dom.historyNavBadge.classList.add('hidden');
+    }
+
+    // Render Landing Page Recent Docs Shelf
+    if (count > 0) {
+        dom.landingRecentSection.classList.remove('hidden');
+        dom.recentDocsCount.textContent = count;
+        dom.recentDocsLandingGrid.innerHTML = documents.slice(0, 6).map(doc => `
+            <div class="recent-doc-card" onclick="openDocumentFromHistory('${doc.file_id}')">
+                <div class="recent-doc-top">
+                    <div class="recent-doc-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                    <div class="recent-doc-meta">
+                        <div class="recent-doc-name" title="${escapeHtml(doc.filename)}">${escapeHtml(doc.filename)}</div>
+                        <div class="recent-doc-time"><i class="fa-regular fa-clock"></i> ${formatTimeAgo(doc.updated_at || doc.created_at)}</div>
+                    </div>
+                </div>
+                <div class="recent-doc-stats">
+                    <span class="recent-stat-pill"><i class="fa-solid fa-file"></i> ${doc.page_count || 1}p</span>
+                    <span class="recent-stat-pill"><i class="fa-solid fa-comments"></i> ${doc.message_count || 0} msgs</span>
+                    <div class="recent-doc-actions">
+                        <button class="recent-del-btn" title="Delete document" onclick="deleteDocumentFromHistory('${doc.file_id}', event)">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        dom.landingRecentSection.classList.add('hidden');
+    }
+
+    // Render Sidebar Switcher List
+    if (count > 0) {
+        dom.sidebarRecentSection.classList.remove('hidden');
+        dom.sidebarRecentList.innerHTML = documents.slice(0, 5).map(doc => `
+            <div class="sidebar-recent-item ${doc.file_id === state.fileId ? 'active' : ''}" 
+                 onclick="openDocumentFromHistory('${doc.file_id}')" 
+                 title="${escapeHtml(doc.filename)}">
+                <i class="fa-solid fa-file-pdf" style="color:${doc.file_id === state.fileId ? 'var(--primary-light)' : '#ef4444'}"></i>
+                <span class="doc-name">${escapeHtml(doc.filename)}</span>
+                <span class="doc-badge">${doc.page_count || 1}p</span>
+            </div>
+        `).join('');
+    } else {
+        dom.sidebarRecentSection.classList.add('hidden');
+    }
+
+    // Render Full History Modal List
+    renderHistoryModalList(documents);
+}
+
+function renderHistoryModalList(documents) {
+    dom.historyModalCountBadge.textContent = `${documents.length} Document${documents.length === 1 ? '' : 's'}`;
+    
+    if (!documents.length) {
+        dom.historyModalList.innerHTML = `
+            <div class="history-empty-state">
+                <i class="fa-solid fa-folder-open"></i>
+                <h4>No documents in history</h4>
+                <p>Upload a PDF document to start analyzing, summarizing, and saving your chat history.</p>
+            </div>
+        `;
+        return;
+    }
+
+    dom.historyModalList.innerHTML = documents.map(doc => `
+        <div class="history-modal-item" id="histItem-${doc.file_id}">
+            <div class="history-item-left">
+                <div class="history-item-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                <div class="history-item-content">
+                    <div class="history-item-title" title="${escapeHtml(doc.filename)}">${escapeHtml(doc.filename)}</div>
+                    <div class="history-item-meta">
+                        <span><i class="fa-regular fa-clock"></i> ${formatDateString(doc.created_at)}</span>
+                        <span>•</span>
+                        <span><i class="fa-solid fa-file"></i> ${doc.page_count || 1} pages</span>
+                        <span>•</span>
+                        <span><i class="fa-solid fa-comments"></i> ${doc.message_count || 0} messages</span>
+                    </div>
+                </div>
+            </div>
+            <div class="history-item-right">
+                <button class="btn btn-primary btn-sm" onclick="openDocumentFromHistory('${doc.file_id}')">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open
+                </button>
+                <button class="icon-btn-sm" title="Delete document and history" onclick="deleteDocumentFromHistory('${doc.file_id}', event)">
+                    <i class="fa-solid fa-trash-can" style="color:var(--danger)"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showHistoryModal() {
+    dom.historySearchInput.value = '';
+    renderHistoryModalList(state.cachedHistory);
+    dom.historyModal.classList.remove('hidden');
+    dom.historySearchInput.focus();
+}
+
+function hideHistoryModal() {
+    dom.historyModal.classList.add('hidden');
+}
+
+function handleHistorySearch() {
+    const q = dom.historySearchInput.value.toLowerCase().trim();
+    if (!q) {
+        renderHistoryModalList(state.cachedHistory);
+        return;
+    }
+    const filtered = state.cachedHistory.filter(d => 
+        (d.filename || '').toLowerCase().includes(q)
+    );
+    renderHistoryModalList(filtered);
+}
+
+async function openDocumentFromHistory(fileId) {
+    hideHistoryModal();
+    if (fileId === state.fileId) {
+        switchTab('chatTab');
+        return;
+    }
+
+    setUploadState(true, 'Loading Document from History…', 'Retrieving saved index and conversation history', 'stepIndex');
+    
+    try {
+        const res = await fetch(`${API_URL}/history/${fileId}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Could not load document history');
+
+        const doc = data.document;
+        const messages = data.messages || [];
+
+        state.fileId = doc.file_id;
+        state.totalPages = Math.max(1, doc.page_count || 1);
+        state.currentPage = 1;
+
+        // Populate Workspace UI
+        dom.initialView.classList.add('hidden');
+        dom.activeWorkspace.classList.remove('hidden');
+        dom.navNewDocBtn.classList.remove('hidden');
+        dom.headerDocInfo.classList.remove('hidden');
+
+        dom.docTitle.textContent = doc.filename;
+        dom.docTitle.title = doc.filename;
+        dom.headerDocName.textContent = doc.filename;
+
+        dom.statPages.textContent = doc.page_count ?? '1';
+        dom.statWords.textContent = (doc.word_count ?? 0).toLocaleString();
+        dom.statChunks.textContent = doc.chunk_count ?? '0';
+
+        dom.readerPageInput.max = state.totalPages;
+        dom.readerTotalPages.textContent = state.totalPages;
+
+        // Reset & Restore Chat History Messages
+        dom.chatHistory.innerHTML = '';
+        renderWelcomeBanner();
+
+        if (messages.length > 0) {
+            messages.forEach(msg => {
+                if (msg.sender === 'user') {
+                    appendUserMessage(msg.content);
+                } else if (msg.sender === 'ai') {
+                    const aiMsgEl = appendThinkingMessage();
+                    renderAiResponse(aiMsgEl, msg.content, {
+                        sources: msg.sources || [],
+                        footer: msg.model ? `${msg.model} · restored` : 'Restored',
+                    });
+                }
+            });
+        }
+
+        // Fetch reader data, keywords, suggested questions
+        loadDocumentReaderData();
+        loadKeywords();
+        loadSuggestedQuestions();
+
+        switchTab('chatTab');
+        setUploadState(false);
+        showToast(`Loaded "${doc.filename}" with ${messages.length} saved messages!`, 'success');
+        
+        // Refresh history list to update active highlight
+        loadHistoryList();
+    } catch (err) {
+        setUploadState(false);
+        showToast(err.message, 'error');
+    }
+}
+
+async function deleteDocumentFromHistory(fileId, event) {
+    if (event) event.stopPropagation();
+    if (!confirm('Are you sure you want to delete this document and all its chat history?')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/history/${fileId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete document');
+
+        showToast('Document and history deleted', 'success');
+        
+        if (state.fileId === fileId) {
+            closeDocument();
+        }
+        
+        loadHistoryList();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function handleClearAllHistory() {
+    if (!confirm('Are you sure you want to clear ALL document and chat history? This cannot be undone.')) return;
+
+    try {
+        const res = await fetch(`${API_URL}/history/clear`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to clear history');
+
+        showToast('All document history cleared', 'success');
+        hideHistoryModal();
+        closeDocument();
+        loadHistoryList();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function handleClearActiveChat() {
+    if (!state.fileId) return;
+    if (!confirm('Clear the conversation history for this document?')) return;
+
+    try {
+        await fetch(`${API_URL}/history/chat/${state.fileId}`, { method: 'DELETE' });
+        dom.chatHistory.innerHTML = '';
+        renderWelcomeBanner();
+        showToast('Chat history cleared for this document', 'success');
+        loadHistoryList();
+    } catch (err) {
+        showToast('Failed to clear chat history', 'error');
+    }
 }
 
 // -------------------------------------------------------------------------- //
@@ -388,7 +675,10 @@ function startStatusPolling() {
 
             if (data.status === 'ready') {
                 setPipelineStep('stepReady');
-                setTimeout(() => enterActiveWorkspace(data), 400);
+                setTimeout(() => {
+                    enterActiveWorkspace(data);
+                    loadHistoryList();
+                }, 400);
             } else if (data.status === 'error') {
                 throw new Error(data.error || 'Document processing encountered an error');
             } else {
@@ -487,6 +777,7 @@ function closeDocument() {
     dom.navNewDocBtn.classList.add('hidden');
     dom.headerDocInfo.classList.add('hidden');
     setUploadState(false);
+    loadHistoryList();
 }
 
 function renderWelcomeBanner() {
@@ -501,8 +792,8 @@ function renderWelcomeBanner() {
                 <ul>
                     <li>⚡ <strong>Quick Summaries:</strong> Choose a format on the left sidebar (Bullets, Overview, Deep Dive, Insights, or FAQ).</li>
                     <li>💬 <strong>Grounded Chat:</strong> Ask any specific question — answers cite exact page numbers <code>(p. N)</code>.</li>
+                    <li>💾 <strong>Persistent History:</strong> All your questions and AI answers are automatically saved to SQLite.</li>
                     <li>📖 <strong>Document Reader:</strong> Read pages side-by-side in the Reader tab.</li>
-                    <li>⏹ <strong>Interrupt Generation:</strong> Stop any response instantly with the Stop button or <kbd>Esc</kbd>.</li>
                 </ul>
             </div>
         </div>
@@ -598,104 +889,105 @@ function handleReaderSearch() {
 }
 
 function highlightSearchText(text, query) {
-    try {
-        const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escaped})`, 'gi');
-        return text.replace(regex, '<span class="highlight-match">$1</span>');
-    } catch {
-        return text;
-    }
+    if (!query) return escapeHtml(text);
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    return escapeHtml(text).replace(regex, '<mark class="reader-highlight">$1</mark>');
 }
 
 // -------------------------------------------------------------------------- //
-// Keywords & Topic Explorer
+// Keywords Cloud & Topic Explorer
 // -------------------------------------------------------------------------- //
 async function loadKeywords() {
-    dom.keywordsList.innerHTML = '<div class="kw-skeleton-pill"></div><div class="kw-skeleton-pill"></div><div class="kw-skeleton-pill"></div>';
     try {
-        const res = await fetch(`${API_URL}/keywords/${state.fileId}?top=18`);
+        const res = await fetch(`${API_URL}/keywords/${state.fileId}?top=20`);
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Keywords failed');
-        
-        state.keywords = data.keywords || [];
-        dom.kwCountBadge.textContent = state.keywords.length;
-        dom.keywordsList.innerHTML = '';
-
-        if (!state.keywords.length) {
-            dom.keywordsList.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">No topics extracted</span>';
-            return;
+        if (res.ok && data.keywords) {
+            state.keywords = data.keywords;
+            dom.kwCountBadge.textContent = data.keywords.length;
+            renderKeywordsCloud(data.keywords);
         }
-
-        state.keywords.forEach(k => {
-            const btn = document.createElement('button');
-            btn.className = 'topic-tag';
-            btn.type = 'button';
-            btn.innerHTML = `<i class="fa-solid fa-tag"></i> <span>${k.term}</span>`;
-            btn.title = `Score: ${k.score} · Ask about "${k.term}"`;
-            btn.addEventListener('click', () => {
-                switchTab('chatTab');
-                dom.chatInput.value = `Explain the significance of "${k.term}" in this document.`;
-                autoResizeTextarea();
-                handleChatSubmit();
-            });
-            dom.keywordsList.appendChild(btn);
-        });
-    } catch {
-        dom.keywordsList.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">Topics unavailable</span>';
+    } catch (err) {
+        console.warn('Keywords fetch failed:', err);
     }
 }
 
-function renderTopicsGrid() {
-    dom.topicsExplorerGrid.innerHTML = '';
-    if (!state.keywords.length) {
-        dom.topicsExplorerGrid.innerHTML = '<p style="color:var(--text-muted)">No topic data loaded yet.</p>';
+function renderKeywordsCloud(keywords) {
+    if (!keywords.length) {
+        dom.keywordsList.innerHTML = '<span style="color:var(--text-muted);font-size:12px">No topics found.</span>';
         return;
     }
 
-    const maxScore = Math.max(...state.keywords.map(k => k.score), 0.01);
-
-    state.keywords.forEach((k, idx) => {
-        const pct = Math.round((k.score / maxScore) * 100);
-        const card = document.createElement('div');
-        card.className = 'topic-insight-card';
-        card.innerHTML = `
-            <div class="card-top">
-                <strong>#${idx + 1} ${k.term}</strong>
-                <span class="relevance-badge">${pct}% Importance</span>
-            </div>
-            <div class="topic-score-bar">
-                <div class="topic-score-fill" style="width: ${pct}%"></div>
-            </div>
-            <p style="font-size:12px;color:var(--text-secondary)">Click to analyze how this topic is referenced in the document.</p>
-        `;
-        card.addEventListener('click', () => {
+    dom.keywordsList.innerHTML = '';
+    keywords.forEach(kw => {
+        const pill = document.createElement('button');
+        pill.className = 'topic-pill';
+        pill.textContent = kw.term;
+        pill.title = `Relevance Score: ${Math.round(kw.score * 100)}%`;
+        pill.addEventListener('click', () => {
             switchTab('chatTab');
-            dom.chatInput.value = `Provide a comprehensive analysis of "${k.term}" based on this document.`;
+            dom.chatInput.value = `Explain how "${kw.term}" is discussed in this document.`;
             autoResizeTextarea();
             handleChatSubmit();
         });
-        dom.topicsExplorerGrid.appendChild(card);
+        dom.keywordsList.appendChild(pill);
     });
 }
+
+function renderTopicsGrid() {
+    if (!state.keywords.length) {
+        dom.topicsExplorerGrid.innerHTML = `
+            <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size:24px"></i>
+                <p style="margin-top:12px">Extracting key topics from document…</p>
+            </div>
+        `;
+        return;
+    }
+
+    dom.topicsExplorerGrid.innerHTML = state.keywords.map((kw, i) => `
+        <div class="topic-card">
+            <div class="topic-card-header">
+                <span class="topic-rank-badge">#${i + 1}</span>
+                <span class="topic-score-badge">${Math.round(kw.score * 100)}% score</span>
+            </div>
+            <h4 class="topic-card-title">${escapeHtml(kw.term)}</h4>
+            <p class="topic-card-desc">Extracted via TF-IDF statistical scoring.</p>
+            <button class="btn btn-outline btn-sm btn-full" onclick="askAboutTopic('${escapeHtml(kw.term)}')">
+                <i class="fa-solid fa-comment-dots"></i> Explore Topic
+            </button>
+        </div>
+    `).join('');
+}
+
+window.askAboutTopic = function(term) {
+    switchTab('chatTab');
+    dom.chatInput.value = `What does the document say about "${term}"? Give specific details and page references.`;
+    autoResizeTextarea();
+    handleChatSubmit();
+};
 
 // -------------------------------------------------------------------------- //
 // Suggested Questions
 // -------------------------------------------------------------------------- //
 async function loadSuggestedQuestions() {
+    dom.suggestionChips.innerHTML = '';
     try {
         const res = await fetch(`${API_URL}/suggest/${state.fileId}`);
         const data = await res.json();
-        if (!res.ok || !data.questions?.length) return;
+        if (!res.ok || !data.questions || !data.questions.length) {
+            dom.suggestionChips.classList.add('hidden');
+            return;
+        }
 
         dom.suggestionChips.innerHTML = '';
         data.questions.forEach(q => {
             const chip = document.createElement('button');
-            chip.className = 'suggestion-pill';
-            chip.type = 'button';
-            chip.innerHTML = `<i class="fa-regular fa-circle-question"></i> ${q}`;
+            chip.className = 'suggestion-chip';
+            chip.innerHTML = `<i class="fa-solid fa-sparkles"></i> <span>${escapeHtml(q)}</span>`;
             chip.addEventListener('click', () => {
-                if (state.isBusy) return;
                 dom.chatInput.value = q;
+                autoResizeTextarea();
                 handleChatSubmit();
             });
             dom.suggestionChips.appendChild(chip);
@@ -729,14 +1021,12 @@ function interruptGeneration() {
         state.abortController.abort();
     }
     
-    // Notify server of cancellation if desired
     if (state.fileId) {
         fetch(`${API_URL}/cancel/${state.fileId}`, { method: 'POST' }).catch(() => {});
     }
 
     setBusyState(false);
     
-    // Find active thinking bubble and mark interrupted
     const lastMsg = dom.chatHistory.querySelector('.chat-msg.ai:last-child');
     if (lastMsg && lastMsg.querySelector('.thinking-box')) {
         const bubble = lastMsg.querySelector('.msg-bubble');
@@ -784,8 +1074,11 @@ async function triggerSummary(length, btnEl) {
         renderAiResponse(aiMsgEl, data.summary, {
             footer: `${data.model || 'AI'}${data.cached ? ' · cached' : ''}`,
         });
+        
+        // Refresh history to update message counts
+        loadHistoryList();
     } catch (err) {
-        if (err.name === 'AbortError') return; // Handled by interruptGeneration
+        if (err.name === 'AbortError') return;
         renderErrorMessage(aiMsgEl, err.message);
     } finally {
         setBusyState(false);
@@ -800,7 +1093,6 @@ async function handleChatSubmit() {
     const question = dom.chatInput.value.trim();
     if (!question || !state.fileId || state.isBusy) return;
 
-    // Check for slash commands
     if (question.startsWith('/')) {
         dom.chatInput.value = '';
         autoResizeTextarea();
@@ -829,8 +1121,11 @@ async function handleChatSubmit() {
             sources: data.sources,
             footer: `${data.model || 'OpenRouter'} · ${data.chunks_used} passage${data.chunks_used === 1 ? '' : 's'} verified`,
         });
+
+        // Refresh history to update message counts
+        loadHistoryList();
     } catch (err) {
-        if (err.name === 'AbortError') return; // Handled by interruptGeneration
+        if (err.name === 'AbortError') return;
         renderErrorMessage(aiMsgEl, err.message);
     } finally {
         setBusyState(false);
@@ -846,11 +1141,8 @@ function handleSlashCommand(cmd) {
     else if (cleaned.startsWith('/detailed')) triggerSummary('detailed');
     else if (cleaned.startsWith('/findings')) triggerSummary('findings');
     else if (cleaned.startsWith('/faq')) triggerSummary('faq');
-    else if (cleaned.startsWith('/clear')) {
-        dom.chatHistory.innerHTML = '';
-        renderWelcomeBanner();
-        showToast('Chat history cleared', 'success');
-    } else {
+    else if (cleaned.startsWith('/clear')) handleClearActiveChat();
+    else {
         showToast(`Unknown command: ${cmd}`, 'error');
     }
 }
@@ -918,15 +1210,12 @@ function renderAiResponse(msgEl, markdownText, { sources = null, footer = '' } =
     const bodyWrapper = msgEl.querySelector('.msg-body-wrapper');
     const bubble = msgEl.querySelector('.msg-bubble');
     
-    // Format markdown
     bubble.classList.add('markdown-body');
     const htmlContent = marked.parse(markdownText || '');
     
-    // Interpret page citations (p. N) into interactive badges
     const enhancedHtml = enrichPageCitations(htmlContent, sources);
     bubble.innerHTML = enhancedHtml;
 
-    // Attach citation chip click listeners
     bubble.querySelectorAll('.citation-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             const pageNum = parseInt(chip.dataset.page, 10);
@@ -935,7 +1224,6 @@ function renderAiResponse(msgEl, markdownText, { sources = null, footer = '' } =
         });
     });
 
-    // Render Grounded Sources Section if present
     if (sources && sources.length) {
         const sourcesDeck = document.createElement('div');
         sourcesDeck.className = 'msg-sources-deck';
@@ -956,7 +1244,6 @@ function renderAiResponse(msgEl, markdownText, { sources = null, footer = '' } =
         bubble.appendChild(sourcesDeck);
     }
 
-    // Message Actions Toolbar (Copy, Read aloud, Jump to Reader)
     const actionsBar = document.createElement('div');
     actionsBar.className = 'msg-actions-bar';
     actionsBar.innerHTML = `
@@ -966,7 +1253,6 @@ function renderAiResponse(msgEl, markdownText, { sources = null, footer = '' } =
         ${footer ? `<span class="msg-model-tag">${footer}</span>` : ''}
     `;
 
-    // Copy Action
     actionsBar.querySelector('.btn-copy').addEventListener('click', async (e) => {
         await navigator.clipboard.writeText(markdownText);
         e.currentTarget.innerHTML = '<i class="fa-solid fa-check" style="color:var(--success)"></i> Copied!';
@@ -975,11 +1261,9 @@ function renderAiResponse(msgEl, markdownText, { sources = null, footer = '' } =
         }, 2000);
     });
 
-    // Speech / Text to Speech Action
     const speakBtn = actionsBar.querySelector('.btn-speak');
     speakBtn.addEventListener('click', () => toggleSpeech(markdownText, speakBtn));
 
-    // Jump to Reader Action
     actionsBar.querySelector('.btn-view-reader').addEventListener('click', () => {
         switchTab('readerTab');
     });
@@ -999,9 +1283,6 @@ function renderErrorMessage(msgEl, message) {
     scrollChatToBottom();
 }
 
-/**
- * Parses markdown text to replace citations like (p. 2) or [Page 2] with interactive buttons.
- */
 function enrichPageCitations(html, sources) {
     return html.replace(/\(p\.\s*(\d+)\)/gi, (match, page) => {
         const matchingSrc = sources ? sources.find(s => String(s.page) === String(page)) : null;
@@ -1050,7 +1331,6 @@ function toggleSpeech(text, btn) {
         return;
     }
 
-    // Clean markdown for speech
     const cleanText = text.replace(/[#*_`~[\]()]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 1.0;
@@ -1091,6 +1371,37 @@ async function handleExport(fmt) {
         }
     } else if (fmt === 'print') {
         window.print();
+    }
+}
+
+// -------------------------------------------------------------------------- //
+// Date/Time Formatting & Helpers
+// -------------------------------------------------------------------------- //
+function formatTimeAgo(timestamp) {
+    if (!timestamp) return 'recently';
+    const d = new Date(timestamp.replace(' ', 'T') + 'Z');
+    const now = new Date();
+    const diffMs = Math.max(0, now - d);
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHrs = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHrs / 24);
+
+    if (diffSec < 60) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatDateString(timestamp) {
+    if (!timestamp) return 'Recent';
+    try {
+        const d = new Date(timestamp.replace(' ', 'T') + 'Z');
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return timestamp;
     }
 }
 

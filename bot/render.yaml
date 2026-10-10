@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: summary-ai-bot
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    # Render free sleeps after inactivity: allow a slow cold start
+    # (MiniLM first download + torch import can exceed 60s).
+    healthCheckPath: /health
+    # NOTE: Render free has 512MB RAM shared with torch + MiniLM (~90MB)
+    # + FAISS + PyMuPDF. If you see OOM / SIGKILL (exit 137), upgrade to
+    # Starter (2GB) — no code change needed.
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: nvidia/nemotron-3-super-120b-a12b:free
+      - key: OPENROUTER_FALLBACK_MODELS
+        value: nvidia/nemotron-3.5-lightning:free,google/gemma-4-31b-it:free,qwen/qwen3.8-27b:free
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: OMP_NUM_THREADS
+        value: 1
+      - key: MKL_NUM_THREADS
+        value: 1
+      - key: OPENBLAS_NUM_THREADS
+        value: 1
+      - key: TOKENIZERS_PARALLELISM
+        value: false
+      - key: HF_HUB_DISABLE_TELEMETRY
+        value: 1
+

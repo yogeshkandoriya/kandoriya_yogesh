@@ -14,12 +14,13 @@ class AIEngine:
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.model_name = os.environ.get(
-            "OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free"
+            "OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free"
         )
-        raw = os.environ.get("OPENROUTER_FALLBACK_MODELS", "")
+        raw = os.environ.get(
+            "OPENROUTER_FALLBACK_MODELS",
+            "nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free,liquid/lfm-2.5-2.6b:free"
+        )
         self.fallback_models = [m.strip() for m in raw.split(",") if m.strip()]
-        # Last verified against the live free catalog on 2026-10-06.
-        # Free tier: 20 req/min, 50 req/day on accounts without credits.
 
     # ------------------------------------------------------------------ #
     # Low-level call
@@ -51,17 +52,24 @@ class AIEngine:
         }
 
         last_error = "Unknown error"
+        is_daily_limit = False
+
         for model in models:
             payload["model"] = model
-            for attempt in range(2):  # one retry per model
+            for attempt in range(2):
                 try:
                     response = requests.post(
-                        self.api_url, headers=headers, json=payload, timeout=120
+                        self.api_url, headers=headers, json=payload, timeout=60
                     )
                     if response.status_code == 429:
-                        # Rate limited: wait briefly and retry, then next model.
-                        retry_after = float(response.headers.get("retry-after", 4))
-                        time.sleep(min(retry_after, 8))
+                        data = response.json() if response.content else {}
+                        err_msg = data.get("error", {}).get("message", "")
+                        if "free-models-per-day" in err_msg or "daily" in err_msg.lower():
+                            is_daily_limit = True
+                            last_error = "OpenRouter daily free-tier limit reached (50 requests/day). Add credits on OpenRouter or provide a new key in .env."
+                            break
+                        retry_after = float(response.headers.get("retry-after", 3))
+                        time.sleep(min(retry_after, 6))
                         last_error = f"Rate limited ({model})"
                         continue
                     response.raise_for_status()
@@ -74,16 +82,17 @@ class AIEngine:
                 except requests.HTTPError as e:
                     status = e.response.status_code if e.response is not None else 0
                     last_error = f"HTTP {status} from {model}"
-                    break  # try the next model
+                    break
                 except (requests.ConnectionError, requests.Timeout) as e:
                     last_error = f"Connection problem with {model}: {e.__class__.__name__}"
                     break
                 except (KeyError, IndexError, ValueError) as e:
                     last_error = f"Unexpected response format from {model}"
                     break
-            else:
-                pass
-        raise RuntimeError(f"All models failed. Last error: {last_error}")
+            if is_daily_limit:
+                break
+
+        raise RuntimeError(last_error if is_daily_limit else f"All models failed. Last error: {last_error}")
 
     # ------------------------------------------------------------------ #
     # Operations

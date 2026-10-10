@@ -1,13 +1,25 @@
+import json
+import os
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+
+_SHARED_MODEL = None
+
+
+def get_shared_embedder(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
+    """Singleton getter for SentenceTransformer to save memory and avoid re-loading."""
+    global _SHARED_MODEL
+    if _SHARED_MODEL is None:
+        _SHARED_MODEL = SentenceTransformer(model_name)
+    return _SHARED_MODEL
 
 
 class VectorStore:
     """Embeds page-aware text chunks and retrieves the most relevant ones."""
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", model: SentenceTransformer = None):
+        self.model = model if model is not None else get_shared_embedder(model_name)
         self.index = None
         # Each chunk: {"text": str, "page": int, "position": int}
         self.chunks: list[dict] = []
@@ -56,6 +68,39 @@ class VectorStore:
         self.index = faiss.IndexFlatIP(dimension)
         self.index.add(embeddings.astype(np.float32))
         return len(self.chunks)
+
+    # ------------------------------------------------------------------ #
+    # Persistence (Disk Save / Load)
+    # ------------------------------------------------------------------ #
+    def save_to_disk(self, file_prefix: str) -> bool:
+        """Save FAISS index and chunk metadata to disk."""
+        try:
+            if self.index is None or not self.chunks:
+                return False
+            index_path = f"{file_prefix}.index"
+            chunks_path = f"{file_prefix}_chunks.json"
+            faiss.write_index(self.index, index_path)
+            with open(chunks_path, "w", encoding="utf-8") as f:
+                json.dump(self.chunks, f, ensure_ascii=False)
+            return True
+        except Exception as exc:
+            print(f"[VectorStore] Error saving index to disk: {exc}")
+            return False
+
+    def load_from_disk(self, file_prefix: str) -> bool:
+        """Load precomputed FAISS index and chunks from disk."""
+        try:
+            index_path = f"{file_prefix}.index"
+            chunks_path = f"{file_prefix}_chunks.json"
+            if not os.path.exists(index_path) or not os.path.exists(chunks_path):
+                return False
+            self.index = faiss.read_index(index_path)
+            with open(chunks_path, "r", encoding="utf-8") as f:
+                self.chunks = json.load(f)
+            return True
+        except Exception as exc:
+            print(f"[VectorStore] Error loading index from disk: {exc}")
+            return False
 
     # ------------------------------------------------------------------ #
     # Retrieval
