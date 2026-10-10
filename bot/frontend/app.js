@@ -356,7 +356,7 @@ async function checkHealth() {
     } catch {
         dom.modelNameText.textContent = 'server offline';
         dom.serverDot.className = 'status-indicator offline';
-        showToast('Cannot connect to backend server on port 8000', 'error');
+        showToast('Cannot connect to backend server', 'error');
     }
 }
 
