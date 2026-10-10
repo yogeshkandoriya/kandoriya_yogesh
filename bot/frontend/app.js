@@ -349,9 +349,9 @@ async function checkHealth() {
         dom.modelNameText.textContent = data.model ? data.model.split('/').pop() : 'online';
         dom.serverDot.className = 'status-indicator online';
         
-        dom.diagPrimaryModel.textContent = data.model || 'nvidia/nemotron-3-super-120b-a12b:free';
+        dom.diagPrimaryModel.textContent = data.model || 'nvidia/nemotron-3.5-lightning:free';
         dom.diagFallbacks.innerHTML = (data.fallbacks || []).map(f => `<div class="code-badge" style="margin-top:4px">${f}</div>`).join('') || 'None';
-        dom.diagKeyStatus.textContent = data.api_key_configured ? 'Configured & Active' : 'Missing (Check .env)';
+        dom.diagKeyStatus.textContent = data.api_key_configured ? 'Configured & Active' : 'Missing (Add OPENROUTER_API_KEY in Render → Environment)';
         dom.diagKeyStatus.style.color = data.api_key_configured ? 'var(--success)' : 'var(--danger)';
     } catch {
         dom.modelNameText.textContent = 'server offline';
